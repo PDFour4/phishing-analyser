@@ -1,0 +1,11 @@
+# Ignore Python virtual environment
+venv/
+
+# Ignore environment variables file
+.env
+
+# Ignore system files
+.DS_Store
+
+# Ignore other directories you don’t need
+uploads/
