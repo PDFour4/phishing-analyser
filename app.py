@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template
+from flask import Flask, request, render_template, send_from_directory
 import os
 import re
 import requests
@@ -6,6 +6,9 @@ from email import policy
 from email.parser import BytesParser
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+import json
 
 app = Flask(__name__)
 UPLOAD_FOLDER = "uploads"
@@ -36,9 +39,21 @@ def upload_email():
             # Scan URLs with VirusTotal
             url_reports = {url: scan_url_virustotal(url) for url in urls}
 
-            return render_template("results.html", headers=headers, urls=url_reports, attachments=attachments_info)
+            json_report_path = save_report_json(headers, url_reports, attachments_info)
+            pdf_report_path = save_report_pdf(headers, url_reports, attachments_info)
+
+            return render_template("results.html", headers=headers, urls=url_reports, attachments=attachments_info, 
+                                  json_report=json_report_path, pdf_report=pdf_report_path)
 
     return render_template("index.html")
+
+@app.route('/download_json')
+def download_json():
+    return send_from_directory(UPLOAD_FOLDER, 'report.json', as_attachment=True)
+
+@app.route('/download_pdf')
+def download_pdf():
+    return send_from_directory(UPLOAD_FOLDER, 'report.pdf', as_attachment=True)
 
 def extract_email_data(filepath):
     """Extracts email headers, URLs, and attachments."""
@@ -130,5 +145,44 @@ def scan_url_virustotal(url):
 
     return "Scan failed"
 
+def save_report_json(headers, urls, attachments_info, filename="report.json"):
+    """Saves analysis results as a JSON file."""
+    report_data = {
+        "headers": headers,
+        "urls": urls,
+        "attachments": attachments_info
+    }
+    with open(os.path.join(UPLOAD_FOLDER, filename), "w") as json_file:
+        json.dump(report_data, json_file, indent=4)
+    return os.path.join(UPLOAD_FOLDER, filename)
+
+def save_report_pdf(headers, urls, attachments_info, filename="report.pdf"):
+    """Saves analysis results as a PDF file."""
+    pdf_path = os.path.join(UPLOAD_FOLDER, filename)
+    c = canvas.Canvas(pdf_path, pagesize=letter)
+    c.drawString(100, 750, "Phishing Email Analysis Report")
+
+    y_position = 730
+    c.drawString(100, y_position, "Email Headers:")
+    y_position -= 20
+    for key, value in headers.items():
+        c.drawString(120, y_position, f"{key}: {value}")
+        y_position -= 15
+
+    c.drawString(100, y_position, "Scanned URLs:")
+    y_position -= 20
+    for url, result in urls.items():
+        c.drawString(120, y_position, f"{url}: {result}")
+        y_position -= 15
+
+    c.drawString(100, y_position, "Attachment Scan Results:")
+    y_position -= 20
+    for filename, result in attachments_info.items():
+        c.drawString(120, y_position, f"{filename}: {result}")
+        y_position -= 15
+
+    c.save()
+    return pdf_path
+
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0")
+    app.run(debug=True, host="0.0.0.0", port=5001)
