@@ -13,7 +13,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Load environment variables from .env file
 load_dotenv()
-VT_API_KEY = os.getenv("VT_API_KEY")
+VT_API_KEY = os.getenv("VT_Key")
 if not VT_API_KEY:
     raise ValueError("VirusTotal API key not found. Please set VT_API_KEY in .env file.")
 
