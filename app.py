@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 import json
+from textwrap import wrap
 
 app = Flask(__name__)
 UPLOAD_FOLDER = "uploads"
@@ -33,17 +34,19 @@ def upload_email():
             file.save(filepath)
             print(f"File uploaded: {file.filename}")
         
-            # Extract headers
-            headers, urls, attachments_info = extract_email_data(filepath)
+            # Extract email data
+            headers, urls, attachments_info, email_safety_verdict = extract_email_data(filepath)
 
-            # Scan URLs with VirusTotal
+            # Scan URLs
             url_reports = {url: scan_url_virustotal(url) for url in urls}
 
-            json_report_path = save_report_json(headers, url_reports, attachments_info)
-            pdf_report_path = save_report_pdf(headers, url_reports, attachments_info)
+            # Save reports
+            json_report_path = save_report_json(headers, url_reports, attachments_info, email_safety_verdict)
+            pdf_report_path = save_report_pdf(headers, url_reports, attachments_info, email_safety_verdict)
 
             return render_template("results.html", headers=headers, urls=url_reports, attachments=attachments_info, 
-                                  json_report=json_report_path, pdf_report=pdf_report_path)
+                                   json_report=json_report_path, pdf_report=pdf_report_path,
+                                   email_safety_verdict=email_safety_verdict)
 
     return render_template("index.html")
 
@@ -68,12 +71,14 @@ def extract_email_data(filepath):
         "Return-Path": msg["Return-Path"],
         "Received-SPF": msg["Received-SPF"],
         "DKIM-Signature": msg["DKIM-Signature"],
+        "Authentication-Results": msg["Authentication-Results"],
         "Date": msg["Date"]
     }
 
-    # Extract URLs from HTML & plain text parts and scan attachments
-    attachments_info = {} # Store attachment scan results
+    # Extract URLs from email body
     urls = []
+    attachments_info = {}
+
     if msg.is_multipart():
         for part in msg.iter_parts():
             content_type = part.get_content_type()
@@ -88,14 +93,42 @@ def extract_email_data(filepath):
                     file_path = os.path.join(UPLOAD_FOLDER, filename)
                     with open(file_path, "wb") as f:
                         f.write(attachment_data)
-                    # Scan attachments
-                    attachment_scan_result = scan_attachment_virustotal(file_path)
-                    attachments_info = {filename: attachment_scan_result}
+                    attachments_info[filename] = scan_attachment_virustotal(file_path)
     else:
         body = msg.get_content()
         urls.extend(extract_urls(str(body)))
 
-    return headers, list(set(urls)), attachments_info
+    # Determine if the email is safe or suspicious
+    email_safety_verdict = validate_email(headers)
+
+    return headers, list(set(urls)), attachments_info, email_safety_verdict
+
+def validate_email(headers):
+    """Determines if an email is legitimate based on SPF, DKIM, and DMARC headers."""
+    spf_pass = "pass" in (headers.get("Received-SPF", "") or "").lower()
+
+    auth_results = headers.get("Authentication-Results")
+    if auth_results is None:
+        auth_results = ""  # Ensure it's a string
+
+    dkim_pass = "dkim=pass" in auth_results.lower()
+    dmarc_pass = "dmarc=pass" in auth_results.lower()
+
+    if spf_pass and dkim_pass and dmarc_pass:
+        return "✅ This email appears to be from a legitimate source. (Passed SPF, DKIM, and DMARC)"
+    elif spf_pass or dkim_pass or dmarc_pass:
+        return "⚠️ This email may not be from a legitimate source. (Failed SPF, DKIM, or DMARC)"
+    else:
+        return (
+            "❓ Unable to determine email authenticity.\n\n"
+            "This email lacks proper authentication checks (SPF, DKIM, DMARC). It may be a phishing attempt.\n\n"
+            "Here are some steps you can take to verify the email:\n"
+            "🔹 Verify the sender manually – Contact the sender through a known and trusted method.\n"
+            "🔹 Look for suspicious elements – Check for urgent language, unexpected attachments, or requests for sensitive info.\n"
+            "🔹 Avoid clicking links – Hover over links to preview their destination or use VirusTotal.\n"
+            "🔹 Check SPF, DKIM, and DMARC records – Use tools like MXToolBox to analyze the sender’s domain authentication.\n"
+            "🔹 Report the email – If you suspect phishing, report it to your IT team or email provider."
+        )
 
 def scan_attachment_virustotal(file_path):
     """Scan an attachment with VirusTotal."""
@@ -145,41 +178,147 @@ def scan_url_virustotal(url):
 
     return "Scan failed"
 
+def sanitize_filename(filename, max_length=50):
+    """Sanitizes and truncates filenames to prevent errors."""
+    filename = re.sub(r'[\/:*?"&lt;&gt;|]', '_', filename)  # Replace invalid characters
+    return filename[:max_length]  # Truncate if too long
+
 def save_report_json(headers, urls, attachments_info, filename="report.json"):
     """Saves analysis results as a JSON file."""
+    filename = sanitize_filename(filename)
+    if not filename.endswith(".json"):
+        filename += ".json"
+
     report_data = {
         "headers": headers,
         "urls": urls,
         "attachments": attachments_info
     }
-    with open(os.path.join(UPLOAD_FOLDER, filename), "w") as json_file:
-        json.dump(report_data, json_file, indent=4)
-    return os.path.join(UPLOAD_FOLDER, filename)
 
-def save_report_pdf(headers, urls, attachments_info, filename="report.pdf"):
-    """Saves analysis results as a PDF file."""
+    json_path = os.path.join(UPLOAD_FOLDER, filename)
+
+    try:
+        with open(json_path, "w") as json_file:
+            json.dump(report_data, json_file, indent=4)
+    except OSError as e:
+        print(f"Error saving JSON report: {e}")
+        json_path = os.path.join(UPLOAD_FOLDER, "default_report.json")
+        with open(json_path, "w") as json_file:
+            json.dump(report_data, json_file, indent=4)
+
+    return json_path
+
+def save_report_pdf(headers, urls, attachments_info, email_safety_verdict, filename="report.pdf"):
+    """Saves analysis results as a PDF file with improved formatting."""
     pdf_path = os.path.join(UPLOAD_FOLDER, filename)
     c = canvas.Canvas(pdf_path, pagesize=letter)
-    c.drawString(100, 750, "Phishing Email Analysis Report")
+    page_height = letter[1] # Height of the page
+    margin = 50  # Margin from the bottom of the page
+    
+    def wrap_text(text, width=80):
+        """Wrap text to fit within a given width."""
+        return wrap(text, width)
+    
+    def check_page_space(y_position, line_height=15):
+        """Check if there is enough space on the current page, and create a new page if needed."""
+        if y_position < margin:
+            c.showPage()  # Finish the current page and start a new one
+            c.setFont("Helvetica", 10)  # Reset font for the new page
+            return page_height - margin  # Reset y_position for the new page
+        return y_position
 
-    y_position = 730
+    y_position = page_height - margin  # Initial Y position
+
+    # Title
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(100, y_position, "Phishing Email Analysis Report")
+    y_position -= 30
+
+    # Section: Email Headers
+    c.setFont("Helvetica-Bold", 12)
     c.drawString(100, y_position, "Email Headers:")
+    c.setFont("Helvetica", 10)
     y_position -= 20
     for key, value in headers.items():
-        c.drawString(120, y_position, f"{key}: {value}")
-        y_position -= 15
+        wrapped_lines = wrap_text(f"{key}: {value}", 80)
+        for line in wrapped_lines:
+            y_position = check_page_space(y_position)  # Check if there's enough space on the page
+            c.drawString(120, y_position, line)
+            y_position -= 15
+        y_position -= 5  # Extra space after each header
 
+    # Section: Scanned URLs
+    c.setFont("Helvetica-Bold", 12)
     c.drawString(100, y_position, "Scanned URLs:")
+    c.setFont("Helvetica", 10)
     y_position -= 20
     for url, result in urls.items():
-        c.drawString(120, y_position, f"{url}: {result}")
-        y_position -= 15
+        wrapped_lines = wrap_text(f"{url}: {result}", 80)
+        for line in wrapped_lines:
+            y_position = check_page_space(y_position)  # Check if there's enough space on the page
+            c.drawString(120, y_position, line)
+            y_position -= 15
+        y_position -= 5  # Extra space after each URL
 
+    # Section: Attachment Scan Results
+    c.setFont("Helvetica-Bold", 12)
     c.drawString(100, y_position, "Attachment Scan Results:")
+    c.setFont("Helvetica", 10)
     y_position -= 20
     for filename, result in attachments_info.items():
-        c.drawString(120, y_position, f"{filename}: {result}")
-        y_position -= 15
+        wrapped_lines = wrap_text(f"{filename}: {result}", 80)
+        for line in wrapped_lines:
+            y_position = check_page_space(y_position)  # Check for page space
+            c.drawString(120, y_position, line)
+            y_position -= 15
+        y_position -= 5  # Extra space after each attachment
+
+    # Section: Email Safety Verdict
+    c.setFont("Helvetica-Bold", 12)
+    y_position = check_page_space(y_position)  # Check for page space
+    c.drawString(100, y_position, "Email Safety Verdict:")
+    c.setFont("Helvetica", 10)
+    y_position -= 20
+
+    # Create a TextObject for multi-line text
+    text_object = c.beginText(120, y_position)  # Start at the current position
+    text_object.setFont("Helvetica", 10)
+
+    # Split the text by newlines and wrap each line
+    for paragraph in email_safety_verdict.split("\n"):
+        wrapped_lines = wrap_text(paragraph, 80)  # Wrap each paragraph to fit the width
+        for line in wrapped_lines:
+            text_object.textLine(line)  # Add each wrapped line to the TextObject
+        text_object.textLine("")  # Add a blank line between paragraphs
+
+    # Draw the TextObject on the canvas
+    c.drawText(text_object)
+
+    # Update y_position after drawing the text
+    y_position = text_object.getY() - 15  # Adjust for spacing after the text
+
+    # Section: Safety Tips (if applicable)
+    if "Unable to determine" in email_safety_verdict:
+        y_position -= 20
+        c.setFont("Helvetica-Bold", 12)
+        y_position = check_page_space(y_position)  # Check for page space
+        c.drawString(100, y_position, "Recommended Actions:")
+        y_position -= 20
+        c.setFont("Helvetica", 10)
+        tips = [
+            "🔹 Verify the sender manually – Contact the sender through a known and trusted method.",
+            "🔹 Look for suspicious elements – Check for urgent language, unexpected attachments, or requests for sensitive info.",
+            "🔹 Avoid clicking links – Hover over links to preview their destination or use VirusTotal.",
+            "🔹 Check SPF, DKIM, and DMARC records – Use tools like MXToolBox to analyze the sender’s domain authentication.",
+            "🔹 Report the email – If you suspect phishing, report it to your IT team or email provider."
+        ]
+        for tip in tips:
+            wrapped_tip = wrap_text(tip, 80)
+            for line in wrapped_tip:
+                y_position = check_page_space(y_position)  # Check for page space
+                c.drawString(120, y_position, line)
+                y_position -= 15
+            y_position -= 5  # Extra space after each tip
 
     c.save()
     return pdf_path
