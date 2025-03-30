@@ -40,104 +40,204 @@
 
     <div class="container mt-5">
         <h2 class="mb-4">Email Analysis Results</h2>
+         <!-- Check if multiple results exist -->
+        {% if results %}
+            {% for result in results %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <strong>File:</strong> {{ result.filename }}
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info" role="alert">
+                        <strong>Email Subject:</strong> {{ result.headers['Subject'] }}
+                    </div>
 
-        <div class="alert alert-info" role="alert">
-            <strong>Email Subject:</strong> {{ headers['Subject'] }}
-        </div>
+                    <h3>Extracted Email Headers</h3>
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th scope="col">Header</th>
+                                <th scope="col">Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for key, value in result.headers.items() %}
+                            <tr>
+                                <td><strong>{{ key }}</strong></td>
+                                <td>{{ value }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
 
-        <h3>Extracted Email Headers</h3>
-        <table class="table table-striped">
-            <thead>
-                <tr>
-                    <th scope="col">Header</th>
-                    <th scope="col">Value</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for key, value in headers.items() %}
-                <tr>
-                    <td><strong>{{ key }}</strong></td>
-                    <td>{{ value }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                    <div class="email-verdict mt-4" style="padding: 10px; border-radius: 5px;
+                            {% if result.email_safety_verdict == '✅ Safe' %} 
+                            background-color: #d4edda;
+                            color: #155724;
+                            border: 1px solid #c3e6cb; 
+                            {% else %} 
+                            background-color: #f8d7da;
+                            color: #721c24; 
+                            border: 1px solid #f5c6cb; 
+                            {% endif %}">
+                        <strong>Email Safety Verdict:</strong> <pre>{{ result.email_safety_verdict | safe }}</pre>
+                    </div>
 
-        <div class="email-verdict mt-4" style="padding: 10px; border-radius: 5px;
-                {% if email_safety_verdict == '✅ Safe' %} 
-                background-color: #d4edda;
-                color: #155724;
-                border: 1px solid #c3e6cb; 
-                {% else %} 
-                background-color: #f8d7da;
-                color: #721c24; 
-                border: 1px solid #f5c6cb; 
-                {% endif %}">
-            <!-- Displaying the email safety verdict with color coding -->
-            <strong>Email Safety Verdict:</strong> <pre>{{ email_safety_verdict | safe }}</pre>
-        </div>
+                    <h3 class="mt-4">Extracted URLs & VirusTotal Analysis</h3>
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th scope="col">URL</th>
+                                <th scope="col">VirusTotal Report</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for url, vt_link in result.urls.items() %}
+                            <tr>
+                                <td>
+                                    <span class="{% if 'fake' in url %}text-danger{% else %}text-success{% endif %}" title="{{ url }}">
+                                        <i class="fas fa-link"></i> {{ url[:50] }}{% if url|length > 50 %}...{% endif %}
+                                    </span>
+                                </td>
+                                <td>
+                                    <a href="{{ vt_link }}" target="_blank" title="VirusTotal Report" class="text-decoration-none">
+                                        <i class="fas fa-virus"></i> VirusTotal Report
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
 
+                    <h3 class="mt-4">Attachments & VirusTotal Analysis</h3>
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th scope="col">Attachment</th>
+                                <th scope="col">VirusTotal Report</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for filename, scan_link in result.attachments.items() %}
+                            <tr>
+                                <td><strong>{{ filename }}</strong></td>
+                                <td><a href="{{ scan_link }}" target="_blank">VirusTotal Report</a></td>
+                            </tr>
+                            {% endfor %}
+                            {% if result.attachments|length == 0 %}
+                            <tr>
+                                <td colspan="2" class="text-center">No attachments found in this email.</td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
 
-        <h3 class="mt-4">Extracted URLs & VirusTotal Analysis</h3>
-        <table class="table table-striped">
-            <thead>
-                <tr>
-                    <th scope="col">URL</th>
-                    <th scope="col">VirusTotal Report</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for url, vt_link in urls.items() %}
-                <tr>
-                    <td>
-                        <!-- Color coding for suspicious URLs -->
-                        <span class="{% if 'fake' in url %}text-danger{% else %}text-success{% endif %}" title="{{ url }}">
-                            <i class="fas fa-link"></i> {{ url[:50] }}{% if url|length > 50 %}...{% endif %}
-                        </span>
-                    </td>
-                    <td>
-                        <a href="{{ vt_link }}" target="_blank" title="VirusTotal Report" class="text-decoration-none">
-                            <!-- Displaying the VirusTotal link with an icon -->
-                            <i class="fas fa-virus"></i> VirusTotal Report
+                    <div class="mt-4">
+                        <a href="{{ result.json_report }}" class="btn btn-primary">
+                            <i class="fas fa-file-download"></i> Download JSON Report
                         </a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                        <a href="{{ result.pdf_report }}" class="btn btn-danger">
+                            <i class="fas fa-file-pdf"></i> Download PDF Report
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <!-- Single email analysis -->
+            <div class="alert alert-info" role="alert">
+                <strong>Email Subject:</strong> {{ headers['Subject'] }}
+            </div>
 
-        <h3 class="mt-4">Attachments & VirusTotal Analysis</h3>
-        <table class="table table-striped">
-            <thead>
-                <tr>
-                    <th scope="col">Attachment</th>
-                    <th scope="col">VirusTotal Report</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for filename, scan_link in attachments.items() %}
-                <tr>
-                    <td><strong>{{ filename }}</strong></td>
-                    <td><a href="{{ scan_link }}" target="_blank">VirusTotal Report</a></td>
-                </tr>
-                {% endfor %}
-            </tbody>
-            <!-- If no attachments are found, display a message -->
-            {% if attachments|length == 0 %}
-            <tr>
-                <td colspan="2" class="text-center">No attachments found in this email.</td>
-            </tr>
-            {% endif %}
-        </table>
+            <h3>Extracted Email Headers</h3>
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th scope="col">Header</th>
+                        <th scope="col">Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for key, value in headers.items() %}
+                    <tr>
+                        <td><strong>{{ key }}</strong></td>
+                        <td>{{ value }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
 
-        <div class="mt-4">
-            <a href="{{ url_for('download_json') }}" class="btn btn-primary">
-                <i class="fas fa-file-download"></i> Download JSON Report
-            </a>
-            <a href="{{ url_for('download_pdf') }}" class="btn btn-danger">
-                <i class="fas fa-file-pdf"></i> Download PDF Report
-            </a>
-        </div>
+            <div class="email-verdict mt-4" style="padding: 10px; border-radius: 5px;
+                    {% if email_safety_verdict == '✅ Safe' %} 
+                    background-color: #d4edda;
+                    color: #155724;
+                    border: 1px solid #c3e6cb; 
+                    {% else %} 
+                    background-color: #f8d7da;
+                    color: #721c24; 
+                    border: 1px solid #f5c6cb; 
+                    {% endif %}">
+                <strong>Email Safety Verdict:</strong> <pre>{{ email_safety_verdict | safe }}</pre>
+            </div>
+
+            <h3 class="mt-4">Extracted URLs & VirusTotal Analysis</h3>
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th scope="col">URL</th>
+                        <th scope="col">VirusTotal Report</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for url, vt_link in urls.items() %}
+                    <tr>
+                        <td>
+                            <span class="{% if 'fake' in url %}text-danger{% else %}text-success{% endif %}" title="{{ url }}">
+                                <i class="fas fa-link"></i> {{ url[:50] }}{% if url|length > 50 %}...{% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            <a href="{{ vt_link }}" target="_blank" title="VirusTotal Report" class="text-decoration-none">
+                                <i class="fas fa-virus"></i> VirusTotal Report
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <h3 class="mt-4">Attachments & VirusTotal Analysis</h3>
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th scope="col">Attachment</th>
+                        <th scope="col">VirusTotal Report</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for filename, scan_link in attachments.items() %}
+                    <tr>
+                        <td><strong>{{ filename }}</strong></td>
+                        <td><a href="{{ scan_link }}" target="_blank">VirusTotal Report</a></td>
+                    </tr>
+                    {% endfor %}
+                    {% if attachments|length == 0 %}
+                    <tr>
+                        <td colspan="2" class="text-center">No attachments found in this email.</td>
+                    </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+
+            <div class="mt-4">
+                <a href="{{ url_for('download_json') }}" class="btn btn-primary">
+                    <i class="fas fa-file-download"></i> Download JSON Report
+                </a>
+                <a href="{{ url_for('download_pdf') }}" class="btn btn-danger">
+                    <i class="fas fa-file-pdf"></i> Download PDF Report
+                </a>
+            </div>
+        {% endif %}
 
         <a href="/" class="btn btn-secondary mt-4">Upload Another Email</a>
     </div>

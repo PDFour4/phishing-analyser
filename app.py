@@ -28,25 +28,41 @@ def home():
 @app.route("/upload", methods=["GET", "POST"])
 def upload_email():
     if request.method == "POST":
-        file = request.files["email_file"]
-        if file:
-            filepath = os.path.join(UPLOAD_FOLDER, file.filename)
-            file.save(filepath)
-            print(f"File uploaded: {file.filename}")
+        files = request.files.getlist("email_file")
+        results = []
         
-            # Extract email data
-            headers, urls, attachments_info, email_safety_verdict = extract_email_data(filepath)
+        for file in files:
+            if file:
+                filepath = os.path.join(UPLOAD_FOLDER, file.filename)
+                file.save(filepath)
+                print(f"File uploaded: {file.filename}")
+            
+                # Extract email data
+                headers, urls, attachments_info, email_safety_verdict = extract_email_data(filepath)
 
-            # Scan URLs
-            url_reports = {url: scan_url_virustotal(url) for url in urls}
+                # Scan URLs
+                url_reports = {url: scan_url_virustotal(url) for url in urls}
 
-            # Save reports
-            json_report_path = save_report_json(headers, url_reports, attachments_info, email_safety_verdict)
-            pdf_report_path = save_report_pdf(headers, url_reports, attachments_info, email_safety_verdict)
+                # Save reports
+                json_report_path = save_report_json(headers, url_reports, attachments_info,
+                                                    email_safety_verdict, 
+                                                    filename=f"{file.filename}_report.json")
+                pdf_report_path = save_report_pdf(headers, url_reports, attachments_info,
+                                                  email_safety_verdict, 
+                                                  filename=f"{file.filename}_report.pdf")
 
-            return render_template("results.html", headers=headers, urls=url_reports, attachments=attachments_info, 
-                                   json_report=json_report_path, pdf_report=pdf_report_path,
-                                   email_safety_verdict=email_safety_verdict)
+                # Append results for rendering
+                results.append({
+                    "filename": file.filename,
+                    "headers": headers,
+                    "urls": url_reports,
+                    "attachments": attachments_info,
+                    "json_report": json_report_path,
+                    "pdf_report": pdf_report_path,
+                    "email_safety_verdict": email_safety_verdict
+                })
+
+        return render_template("results.html", results=results)
 
     return render_template("index.html")
 
@@ -183,7 +199,7 @@ def sanitize_filename(filename, max_length=50):
     filename = re.sub(r'[\/:*?"&lt;&gt;|]', '_', filename)  # Replace invalid characters
     return filename[:max_length]  # Truncate if too long
 
-def save_report_json(headers, urls, attachments_info, filename="report.json"):
+def save_report_json(headers, urls, attachments_info, email_safety_verdict, filename="report.json"):
     """Saves analysis results as a JSON file."""
     filename = sanitize_filename(filename)
     if not filename.endswith(".json"):
@@ -192,7 +208,8 @@ def save_report_json(headers, urls, attachments_info, filename="report.json"):
     report_data = {
         "headers": headers,
         "urls": urls,
-        "attachments": attachments_info
+        "attachments": attachments_info,
+        "email_safety_verdict": email_safety_verdict  # Include the safety verdict in the JSON report
     }
 
     json_path = os.path.join(UPLOAD_FOLDER, filename)
