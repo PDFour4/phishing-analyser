@@ -133,10 +133,10 @@
                     </table>
 
                     <div class="mt-4">
-                        <a href="{{ result.json_report }}" class="btn btn-primary">
+                        <a href="{{ url_for('download_json', filename=result.json_report.split('/')[-1]) }}" class="btn btn-primary">
                             <i class="fas fa-file-download"></i> Download JSON Report
                         </a>
-                        <a href="{{ result.pdf_report }}" class="btn btn-danger">
+                        <a href="{{ url_for('download_pdf', filename=result.pdf_report.split('/')[-1]) }}" class="btn btn-danger">
                             <i class="fas fa-file-pdf"></i> Download PDF Report
                         </a>
                     </div>
@@ -230,10 +230,10 @@
             </table>
 
             <div class="mt-4">
-                <a href="{{ url_for('download_json') }}" class="btn btn-primary">
+                <a href="{{ url_for('download_json', filename=result.json_report.split('/')[-1]) }}" class="btn btn-primary">
                     <i class="fas fa-file-download"></i> Download JSON Report
                 </a>
-                <a href="{{ url_for('download_pdf') }}" class="btn btn-danger">
+                <a href="{{ url_for('download_pdf', filename=result.pdf_report.split('/')[-1]) }}" class="btn btn-danger">
                     <i class="fas fa-file-pdf"></i> Download PDF Report
                 </a>
             </div>

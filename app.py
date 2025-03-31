@@ -68,11 +68,17 @@ def upload_email():
 
 @app.route('/download_json')
 def download_json():
-    return send_from_directory(UPLOAD_FOLDER, 'report.json', as_attachment=True)
+    filename = request.args.get('filename')
+    if filename and os.path.exists(os.path.join(UPLOAD_FOLDER, filename)):
+        return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
+    return "File not found", 404
 
 @app.route('/download_pdf')
 def download_pdf():
-    return send_from_directory(UPLOAD_FOLDER, 'report.pdf', as_attachment=True)
+    filename = request.args.get('filename')
+    if filename and os.path.exists(os.path.join(UPLOAD_FOLDER, filename)):
+        return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
+    return "File not found", 404
 
 def extract_email_data(filepath):
     """Extracts email headers, URLs, and attachments."""
