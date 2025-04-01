@@ -17,7 +17,6 @@ Phishing Email Analyser is a web-based tool that allows users to upload email fi
 
 ## Planned Features
 To enhance functionality and user experience, we plan to implement the following:
-- **Add a Dashboard for Users**: Provide a dashboard to view past analyses and insights.
 - **Improve UI with Bootstrap or Tailwind CSS**:
   - Enhance design consistency and responsiveness.
   - Add **modals or tooltips** to explain the results and improve user experience.

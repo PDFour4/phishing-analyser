@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template, send_from_directory
+from flask import Flask, request, render_template, send_from_directory, redirect, url_for, session
 import os
 import re
 import requests
@@ -21,16 +21,34 @@ VT_API_KEY = os.getenv("VT_Key")
 if not VT_API_KEY:
     raise ValueError("VirusTotal API key not found. Please set VT_API_KEY in .env file.")
 
+app.secret_key = os.getenv("SECRET_KEY")
+if not app.secret_key:
+    raise ValueError("Secret key not found. Please set SECRET_KEY in .env file.")
+
 @app.route("/")
 def home():
+    session['uploaded'] = False # Reset the uploaded state when visiting the home page
     return render_template("home.html")
 
+email_results = []
 @app.route("/upload", methods=["GET", "POST"])
 def upload_email():
+    global email_results
     if request.method == "POST":
+        # Clear previous results
+        email_results = []
+
+        # Clear the uploads folder
+        for filename in os.listdir(UPLOAD_FOLDER):
+            file_path = os.path.join(UPLOAD_FOLDER, filename)
+            try:
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+            except Exception as e:
+                print(f"Error deleting file {file_path}: {e}")
+
+        # Handle file upload
         files = request.files.getlist("email_file")
-        results = []
-        
         for file in files:
             if file:
                 filepath = os.path.join(UPLOAD_FOLDER, file.filename)
@@ -52,7 +70,7 @@ def upload_email():
                                                   filename=f"{file.filename}_report.pdf")
 
                 # Append results for rendering
-                results.append({
+                email_results.append({
                     "filename": file.filename,
                     "headers": headers,
                     "urls": url_reports,
@@ -62,9 +80,21 @@ def upload_email():
                     "email_safety_verdict": email_safety_verdict
                 })
 
-        return render_template("results.html", results=results)
+        # Set session variable to indicate that files have been uploaded
+        session['uploaded'] = True
+        # Redirect to results page
+        return redirect(url_for("results"))
 
     return render_template("index.html")
+
+@app.route("/results")
+def results():
+    if not session.get('uploaded'):
+        # text if the user tries to access results without uploading files
+        return render_template("index.html", message="Please upload an email file first.")
+    # Retrieve the results from the session
+    return render_template("results.html", results=email_results)
+
 
 @app.route('/download_json')
 def download_json():

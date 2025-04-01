@@ -4,8 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Email Analysis Results</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- FontAwesome for icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
     <style>
         table {
@@ -21,7 +20,7 @@
     </style>
 </head>
 <body>
-    <!-- Navigation Bar -->
+    <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container">
             <a class="navbar-brand" href="/">Phishing Email Analyzer</a>
@@ -29,10 +28,18 @@
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ml-auto">
-                    <li class="nav-item active">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
                         <a class="nav-link" href="/">Home</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/upload">Upload</a>
+                    </li>
+                    {% if session.get('uploaded') %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="/results">Results</a>
+                    </li>
+                    {% endif %}
                 </ul>
             </div>
         </div>
@@ -40,7 +47,6 @@
 
     <div class="container mt-5">
         <h2 class="mb-4">Email Analysis Results</h2>
-         <!-- Check if multiple results exist -->
         {% if results %}
             {% for result in results %}
             <div class="card mb-4">
@@ -70,17 +76,17 @@
                         </tbody>
                     </table>
 
-                    <div class="email-verdict mt-4" style="padding: 10px; border-radius: 5px;
-                            {% if result.email_safety_verdict == '✅ Safe' %} 
-                            background-color: #d4edda;
-                            color: #155724;
-                            border: 1px solid #c3e6cb; 
-                            {% else %} 
-                            background-color: #f8d7da;
-                            color: #721c24; 
-                            border: 1px solid #f5c6cb; 
-                            {% endif %}">
+                    <div class="email-verdict mt-4 p-3 rounded 
+                        {% if result.email_safety_verdict == '✅ This email appears to be from a legitimate source. (Passed SPF, DKIM, and DMARC)' %} 
+                        bg-success-subtle text-dark 
+                        {% else %} 
+                        bg-danger-subtle text-dark 
+                        {% endif %}">
                         <strong>Email Safety Verdict:</strong> <pre>{{ result.email_safety_verdict | safe }}</pre>
+                        <!-- Add a button to open a modal for more details -->
+                        <button type="button" class="btn btn-link text-decoration-none" data-bs-toggle="modal" data-bs-target="#verdictModal">
+                            What does this mean?
+                        </button>
                     </div>
 
                     <h3 class="mt-4">Extracted URLs & VirusTotal Analysis</h3>
@@ -144,7 +150,6 @@
             </div>
             {% endfor %}
         {% else %}
-            <!-- Single email analysis -->
             <div class="alert alert-info" role="alert">
                 <strong>Email Subject:</strong> {{ headers['Subject'] }}
             </div>
@@ -167,17 +172,17 @@
                 </tbody>
             </table>
 
-            <div class="email-verdict mt-4" style="padding: 10px; border-radius: 5px;
-                    {% if email_safety_verdict == '✅ Safe' %} 
-                    background-color: #d4edda;
-                    color: #155724;
-                    border: 1px solid #c3e6cb; 
-                    {% else %} 
-                    background-color: #f8d7da;
-                    color: #721c24; 
-                    border: 1px solid #f5c6cb; 
-                    {% endif %}">
+            <div class="email-verdict mt-4 p-3 rounded 
+                {% if email_safety_verdict == '✅ This email appears to be from a legitimate source. (Passed SPF, DKIM, and DMARC)' %} 
+                bg-success-subtle text-dark
+                {% else %} 
+                bg-danger-subtle text-dark 
+                {% endif %}">
                 <strong>Email Safety Verdict:</strong> <pre>{{ email_safety_verdict | safe }}</pre>
+                <!-- Add a button to open a modal for more details -->
+                <button type="button" class="btn btn-link text-decoration-none" data-bs-toggle="modal" data-bs-target="#verdictModal">
+                    What does this mean?
+                </button>
             </div>
 
             <h3 class="mt-4">Extracted URLs & VirusTotal Analysis</h3>
@@ -242,6 +247,30 @@
         <a href="/" class="btn btn-secondary mt-4">Upload Another Email</a>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Modal for Email Safety Verdict -->
+    <div class="modal fade" id="verdictModal" tabindex="-1" aria-labelledby="verdictModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="verdictModalLabel">Email Safety Verdict</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>The email safety verdict is determined based on SPF, DKIM, and DMARC checks:</p>
+                    <ul>
+                        <li><strong>SPF:</strong> Ensures the email is sent from an authorized server.</li>
+                        <li><strong>DKIM:</strong> Verifies the email's integrity and authenticity.</li>
+                        <li><strong>DMARC:</strong> Combines SPF and DKIM to prevent spoofing.</li>
+                    </ul>
+                    <p>If the email fails these checks, it may be a phishing attempt.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
