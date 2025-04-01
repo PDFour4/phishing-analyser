@@ -90,7 +90,7 @@ def upload_email():
 @app.route("/results")
 def results():
     if not session.get('uploaded'):
-        # text if the user tries to access results without uploading files
+        # If no files have been uploaded, redirect to the upload page
         return render_template("index.html", message="Please upload an email file first.")
     # Retrieve the results from the session
     return render_template("results.html", results=email_results)

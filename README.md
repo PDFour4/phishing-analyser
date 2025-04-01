@@ -14,12 +14,12 @@ Phishing Email Analyser is a web-based tool that allows users to upload email fi
 - **Saving Analysis Reports (PDF/JSON)**: Allow users to download or store reports for future reference.
 - **Email Validation (Fake vs. Real)**: Implement checks to determine if an email is from a legitimate source.
 - **Multi-Email Upload & Batch Processing**: Enable users to upload multiple emails at once for bulk analysis.
-
-## Planned Features
-To enhance functionality and user experience, we plan to implement the following:
 - **Improve UI with Bootstrap or Tailwind CSS**:
   - Enhance design consistency and responsiveness.
   - Add **modals or tooltips** to explain the results and improve user experience.
+
+## Planned Features
+None for now!
 
 ## Installation & Deployment
 ### Local Setup

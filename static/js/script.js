@@ -59,7 +59,7 @@ function startScan(event) {
         .then(() => {
             const endTime = Date.now(); // Record the end time
             const responseDuration = endTime - startTime; // Calculate server response time
-            const minimumDuration = 4000; // Set a minimum animation duration (e.g., 4 seconds)
+            const minimumDuration = 4000; // Set a minimum animation duration (4 seconds)
             const duration = Math.max(responseDuration, minimumDuration); // Ensure the animation lasts at least the minimum duration
             return updateProgress(duration); // Synchronize animation with server response time
         })
